@@ -1,58 +1,57 @@
-/*
- * voronoi.h — DCEL type definitions and Voronoi function declarations
- *
- * P3 owns voronoi_build(), dcel_neighbours(), voronoi_free(), voronoi_insert_site().
- * P4 appends clip_to_bbox(), cell_area(), compute_all_areas(), flag_underserved().
- *
- * STUB: P3 will replace the function bodies in voronoi.c.
- *       The struct definitions below are the agreed interface contract.
- */
 #ifndef VORONOI_H
 #define VORONOI_H
 
-#include "kd.h"   /* point_t */
+#include "kd.h"
 
-/* ── DCEL structs (Section 10 of the context doc) ────────────── */
+// Task 2 — DCEL implementation — dcel.h structures
+typedef struct half_edge half_edge_t;
+typedef struct face face_t;
 
 typedef struct vertex {
     double x, y;
-    struct half_edge *incident_edge;
+    half_edge_t* incident_edge;
 } vertex_t;
 
-typedef struct half_edge {
-    vertex_t          *origin;
-    struct half_edge  *twin;
-    struct half_edge  *next;
-    struct half_edge  *prev;
-    struct face       *face;
-    int                is_infinite;
-} half_edge_t;
+struct half_edge {
+    vertex_t* origin;
+    half_edge_t* twin;
+    half_edge_t* next;
+    half_edge_t* prev;
+    face_t* face;
+    int is_infinite;
+};
 
-typedef struct face {
-    int           site_id;
-    half_edge_t  *outer_edge;
-    double        area;           /* computed by P4's cell_area()        */
-    int           is_underserved; /* set by P4's flag_underserved()      */
-} face_t;
+struct face {
+    int site_id;
+    half_edge_t* outer_edge;
+    double area;          // computed by P4
+    int is_underserved;   // set by P4
+};
 
 typedef struct dcel {
-    vertex_t    **vertices;  int nv;
-    half_edge_t **edges;     int ne;
-    face_t      **faces;     int nf;
+    vertex_t** vertices;
+    int nv;
+    half_edge_t** edges;
+    int ne;
+    face_t** faces;
+    int nf;
+    
+    // Internal capacities for dynamic array reallocation
+    int max_v, max_e, max_f;
 } dcel_t;
 
-/* ── P3 functions (voronoi.c) ────────────────────────────────── */
+// P3 exports
+dcel_t* voronoi_build(point_t* sites, int n);
+face_t** dcel_neighbours(dcel_t* d, int site_id, int* out_count);
+void voronoi_free(dcel_t* d);
 
-dcel_t  *voronoi_build(point_t *sites, int n);
-face_t **dcel_neighbours(dcel_t *d, int site_id, int *out_count);
-void     voronoi_free(dcel_t *d);
-void     voronoi_insert_site(dcel_t *d, point_t new_site);
+// Incremental insertion
+void voronoi_insert_site(dcel_t* d, point_t new_site);
 
-/* ── P4 functions (geometry.c) ───────────────────────────────── */
+// P4 exports (additions to voronoi.h)
+void clip_to_bbox(dcel_t* d, double xmin, double ymin, double xmax, double ymax);
+double cell_area(dcel_t* d, int face_id);
+void compute_all_areas(dcel_t* d); /* Added by P5 */
+int* flag_underserved(dcel_t* d, double threshold, int* out_count);
 
-void   clip_to_bbox(dcel_t *d, double xmin, double ymin, double xmax, double ymax);
-double cell_area(dcel_t *d, int face_id);
-void   compute_all_areas(dcel_t *d);
-int   *flag_underserved(dcel_t *d, double threshold, int *out_count);
-
-#endif /* VORONOI_H */
+#endif

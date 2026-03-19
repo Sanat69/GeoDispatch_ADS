@@ -14,7 +14,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── P1 — Ragini ───────────────────────────────────────────────
+# ── Models ────────────────────────────────────────────────────
 
 class QueryRequest(BaseModel):
     lat: float
@@ -26,18 +26,15 @@ class KNNRequest(BaseModel):
     k: int = 3
 
 class OptimiseRequest(BaseModel):
-    iterations: int = Field(default=10, ge=1, le=200,
-                            description="Number of Lloyd's iterations to run")
-    convergence_threshold: float = Field(
-        default=50.0, ge=0.1,
-        description="Stop early if total movement < threshold (metres)")
+    iterations: int = Field(default=10, ge=1, le=200)
+    convergence_threshold: float = Field(default=50.0, ge=0.1)
 
 class SetStateRequest(BaseModel):
     facility_id: int
-    new_state: str = Field(
-        ..., pattern="^(online|offline|overloaded)$",
-        description="Target state: online | offline | overloaded")
+    new_state: str = Field(..., pattern="^(online|offline|overloaded)$")
 
+
+# ── P1 — Ragini ───────────────────────────────────────────────
 
 @app.post("/query-nearest")
 def query_nearest(body: QueryRequest):
@@ -51,46 +48,6 @@ def query_nearest(body: QueryRequest):
 def query_knn(body: KNNRequest):
     results = gd.kd_knn(body.lat, body.lon, body.k)
     return {"k": body.k, "facilities": results}
-
-
-# ── P2 — Nikhil ───────────────────────────────────────────────
-
-@app.post("/optimise")
-def optimise(body: OptimiseRequest):
-    try:
-        steps = gd.run_lloyds(body.iterations, body.convergence_threshold)
-    except AttributeError:
-        raise HTTPException(
-            status_code=501,
-            detail="Lloyd's algorithm not yet available (waiting for P5's algo.c)")
-    except Exception as e:
-        raise HTTPException(status_code=500,
-                            detail=f"Lloyd's optimisation failed: {e}")
-    if not steps:
-        return {"steps": [], "recommendation": None,
-                "msg": "No movement — already converged."}
-    return {
-        "steps": steps,
-        "recommendation": steps[-1].get("facility_movements", []),
-    }
-
-
-@app.post("/set-state")
-def set_facility_state(body: SetStateRequest):
-    result = state_manager.set_state(body.facility_id, body.new_state)
-    if not result["ok"]:
-        raise HTTPException(status_code=400, detail=result["msg"])
-    return result
-
-
-@app.get("/facility-states")
-def facility_states():
-    return state_manager.get_all_states()
-
-
-@app.get("/live-facilities")
-def live_facilities():
-    return {"ids": state_manager.get_live_facilities()}
 
 
 # ── P3 — Shakti ───────────────────────────────────────────────
@@ -122,4 +79,37 @@ def coverage_map():
     return {"type": "FeatureCollection", "features": features}
 
 
-# ── other endpoints go below (Sachi, Sanat will add theirs) ───
+# ── P2 — Nikhil ───────────────────────────────────────────────
+
+@app.post("/optimise")
+def optimise(body: OptimiseRequest):
+    try:
+        steps = gd.run_lloyds(body.iterations, body.convergence_threshold)
+    except AttributeError:
+        raise HTTPException(status_code=501, detail="Lloyd's not yet available")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Optimisation failed: {e}")
+    if not steps:
+        return {"steps": [], "recommendation": None, "msg": "Already converged."}
+    return {"steps": steps, "recommendation": steps[-1].get("facility_movements", [])}
+
+
+@app.post("/set-state")
+def set_facility_state(body: SetStateRequest):
+    result = state_manager.set_state(body.facility_id, body.new_state)
+    if not result["ok"]:
+        raise HTTPException(status_code=400, detail=result["msg"])
+    return result
+
+
+@app.get("/facility-states")
+def facility_states():
+    return state_manager.get_all_states()
+
+
+@app.get("/live-facilities")
+def live_facilities():
+    return {"ids": state_manager.get_live_facilities()}
+
+
+# ── Sachi, Sanat — add your endpoints below ───────────────────

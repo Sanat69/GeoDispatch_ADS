@@ -2,6 +2,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import geodispatch as gd
+import state_manager
+import math
 
 app = FastAPI(title="GeoDispatch", version="1.0.0")
 
@@ -51,24 +53,26 @@ def query_knn(body: KNNRequest):
     return {"k": body.k, "facilities": results}
 
 
-import state_manager
-
+# ── P2 — Nikhil ───────────────────────────────────────────────
 
 @app.post("/optimise")
 def optimise(body: OptimiseRequest):
     try:
         steps = gd.run_lloyds(body.iterations, body.convergence_threshold)
     except AttributeError:
-        raise HTTPException(status_code=501,
+        raise HTTPException(
+            status_code=501,
             detail="Lloyd's algorithm not yet available (waiting for P5's algo.c)")
     except Exception as e:
         raise HTTPException(status_code=500,
-            detail=f"Lloyd's optimisation failed: {e}")
+                            detail=f"Lloyd's optimisation failed: {e}")
     if not steps:
         return {"steps": [], "recommendation": None,
                 "msg": "No movement — already converged."}
-    return {"steps": steps,
-            "recommendation": steps[-1].get("facility_movements", [])}
+    return {
+        "steps": steps,
+        "recommendation": steps[-1].get("facility_movements", []),
+    }
 
 
 @app.post("/set-state")
@@ -90,28 +94,32 @@ def live_facilities():
 
 
 # ── P3 — Shakti ───────────────────────────────────────────────
-import math
 
-@app.get('/coverage-map')
+@app.get("/coverage-map")
 def coverage_map():
-    cells = gd.get_coverage_map() if hasattr(gd, 'get_coverage_map') else []
+    cells = gd.get_coverage_map() if hasattr(gd, "get_coverage_map") else []
     features = []
     for cell in cells:
         polygon_coords = []
-        for x, y in cell.get('polygon', []):
+        for x, y in cell.get("polygon", []):
             lat = (y / 111320.0) + 18.5204
             lon = (x / (math.cos(18.5204 * math.pi / 180.0) * 111320.0)) + 73.8567
             polygon_coords.append([lon, lat])
         feature = {
             "type": "Feature",
             "properties": {
-                "site_id": cell.get('site_id'),
-                "area": cell.get('area', 0),
-                "is_underserved": cell.get('is_underserved', 0),
-                "facility_name": cell.get('facility_name', f"Facility {cell.get('site_id')}")
+                "site_id": cell.get("site_id"),
+                "area": cell.get("area", 0),
+                "is_underserved": cell.get("is_underserved", 0),
+                "facility_name": cell.get("facility_name", f"Facility {cell.get('site_id')}")
             },
-            "geometry": {"type": "Polygon", "coordinates": [polygon_coords]}
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [polygon_coords]
+            }
         }
         features.append(feature)
     return {"type": "FeatureCollection", "features": features}
 
+
+# ── other endpoints go below (Sachi, Sanat will add theirs) ───

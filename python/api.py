@@ -105,3 +105,35 @@ def live_facilities():
     return {"ids": state_manager.get_live_facilities()}
 
 
+# ── P3 — Shakti ───────────────────────────────────────────────
+import math
+
+@app.get('/coverage-map')
+def coverage_map():
+    cells = gd.get_coverage_map() if hasattr(gd, 'get_coverage_map') else []
+    features = []
+    for cell in cells:
+        polygon_coords = []
+        for point in cell.get('polygon', []):
+            if len(point) == 2:
+                x, y = point
+            else:
+                x, y = point["x"], point["y"] 
+            # Original formula from Shakti's commit:
+            lat = (y / 111320.0) + 18.5204
+            lon = (x / (math.cos(18.5204 * math.pi / 180.0) * 111320.0)) + 73.8567
+            polygon_coords.append([lon, lat])
+        feature = {
+            "type": "Feature",
+            "properties": {
+                "site_id": cell.get('site_id'),
+                "area": cell.get('area', 0),
+                "is_underserved": cell.get('is_underserved', 0),
+                "facility_name": cell.get('facility_name', f"Facility {cell.get('site_id')}")
+            },
+            "geometry": {"type": "Polygon", "coordinates": [polygon_coords]}
+        }
+        features.append(feature)
+    return {"type": "FeatureCollection", "features": features}
+
+
